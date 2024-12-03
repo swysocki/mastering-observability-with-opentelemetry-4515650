@@ -21,7 +21,7 @@ module.exports = () => {
       }
 
       const { data } = await axios.get(
-        `http://127.0.0.1:3001?choice=${req.query.choice}`
+        `http://service-gateway:3001?choice=${req.query.choice}`
       );
       return res.render("index", data);
     } catch (err) {

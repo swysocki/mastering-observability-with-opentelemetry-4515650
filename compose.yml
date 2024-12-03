@@ -1,0 +1,81 @@
+services:
+  frontend:
+    image: "frontend"
+    ports:
+    - 8080:8080
+    build:
+      dockerfile_inline: |
+        FROM node:lts        
+        RUN useradd -ms /bin/sh -u 1001 app
+        USER app
+        WORKDIR /app
+        COPY --chown=app:app ./_opentelemetry-js /app/_opentelemetry-js
+        RUN npm install ./_opentelemetry-js
+        COPY --chown=app:app ./node-frontend /app/node-frontend
+        WORKDIR /app/node-frontend
+        RUN npm install
+    command: npm start
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./node-frontend
+          target: /app/node-frontend
+  service-gateway:
+    image: service-gateway:v1
+    ports:
+      - 3001:3001
+    build:
+      context: ./python-service-gateway
+      dockerfile_inline: |
+        FROM python:3.12
+        COPY . /app
+        WORKDIR /app
+        RUN pip install --no-cache -r requirements.txt
+    command: flask run --host=0.0.0.0 --port=3001 --debug # debug allow hot reload so watch: sync works
+    develop:
+      watch:
+        - path: ./python-service-gateway
+          action: sync+restart
+          target: /app
+  service-blue:
+    image: service-blue:v1
+    ports:
+      - 3020:3020
+    build:
+      dockerfile_inline: |
+        FROM node:lts
+        RUN useradd -ms /bin/sh -u 1001 app
+        USER app
+        WORKDIR /app
+        COPY --chown=app:app ./_opentelemetry-js /app/_opentelemetry-js
+        RUN npm install ./_opentelemetry-js
+        COPY --chown=app:app ./node-service-blue /app/service-blue
+        WORKDIR /app/service-blue
+        RUN npm install
+    command: npm start
+    develop:
+      watch:
+        - path: ./node-service-blue
+          action: sync+restart
+          target: /app/service-blue
+  service-green:
+    image: service-green:v1
+    ports:
+     - 3010:3010
+    build:
+      context: ./python-service-green
+      dockerfile_inline: |
+        FROM python:3.12
+        COPY . /app
+        WORKDIR /app
+        RUN pip install --no-cache -r requirements.txt
+    command: flask run --host=0.0.0.0 --port=3010 --debug
+    develop:
+      watch:
+        - path: ./python-service-green
+          action: sync+restart
+          target: /app
+  mongo:
+    image: mongo:latest
+    ports:
+      - 27017:27017
